@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  # Development environment for aether
+  aether-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./workspaces:/home/aether/workspaces
+    environment:
+      - RUST_LOG=info
+    working_dir: /home/aether/workspaces
+
+  # Example: Test workspace with postgres
+  test-workspace:
+    image: docker.io/library/postgres:15-alpine
+    environment:
+      POSTGRES_USER: aether
+      POSTGRES_PASSWORD: aether_dev
+      POSTGRES_DB: aether_test
+    ports:
+      - "5432"  # Dynamic port mapping
+    labels:
+      - "aether.managed=true"
+      - "aether.workspace=test"
+      - "aether.service=postgres"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aether"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Example: Redis for caching
+  test-redis:
+    image: docker.io/library/redis:7-alpine
+    ports:
+      - "6379"
+    labels:
+      - "aether.managed=true"
+      - "aether.workspace=test"
+      - "aether.service=redis"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

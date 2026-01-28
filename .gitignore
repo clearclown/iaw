@@ -1,0 +1,28 @@
+# Rust
+/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# AIDA artifacts (development only)
+.aida/
+
+# Docker
+workspaces/
+
+# Test artifacts
+*.log
+coverage/
