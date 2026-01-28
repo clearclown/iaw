@@ -4,57 +4,73 @@
 
 **Aether (ajj)** は "Infrastructure as Workspace" (IaW) を実現する Jujutsu (jj) VCS のラッパーCLIツールです。AIエージェントによる並列開発を可能にするため、ワークスペース（コードブランチ）とインフラ（コンテナ環境）のライフサイクルを同期させます。
 
-## Core Concepts
-
-- **IaW (Infrastructure as Workspace)**: ワークスペースとインフラのライフサイクルを1対1で結合
-- **動的ポートマッピング**: ポート競合を回避するため、空きポートを動的に割り当て
-- **コンテキスト注入**: 環境変数やDB接続情報を自動で `.env` に注入
-- **AI-First設計**: 構造化JSON出力、決定論的な環境プロビジョニング
-
 ## Tech Stack
 
-- **言語**: Rust
+- **言語**: Rust 2021 Edition
 - **バイナリ名**: `ajj`
 - **VCS**: Jujutsu (jj) をラップ
-- **バックエンド**: Docker (Local/Remote), Kubernetes (将来)
+- **バックエンド**: Docker (bollard crate)
+- **非同期ランタイム**: tokio
+- **CLI**: clap v4
 
 ## Project Structure
 
 ```
 IaW/
-├── docs/
-│   ├── 企画書.md       # プロジェクトのビジョンと戦略
-│   └── 要件定義書.md   # 機能・非機能要件の詳細
-├── README.md           # プロジェクト概要とクイックスタート
-├── aether.toml         # ワークスペース設定ファイル（ユーザー作成）
-└── CLAUDE.md           # 本ファイル
+├── src/
+│   ├── main.rs              # エントリーポイント
+│   ├── lib.rs               # ライブラリエクスポート
+│   ├── error.rs             # エラー型定義
+│   ├── cli/                 # コマンドライン処理
+│   │   ├── commands.rs      # clap 定義
+│   │   ├── workspace.rs     # workspace add/forget
+│   │   ├── run.rs           # run コマンド
+│   │   └── status.rs        # status コマンド
+│   ├── config/              # 設定管理
+│   │   ├── schema.rs        # AetherConfig 構造体
+│   │   └── loader.rs        # TOML 読み込み
+│   ├── jj/                  # Jujutsu 連携
+│   │   ├── delegation.rs    # サブプロセス実行
+│   │   └── parser.rs        # 出力パース
+│   ├── provisioner/         # リソース管理
+│   │   ├── state.rs         # ワークスペース状態
+│   │   ├── port_allocator.rs # ポート割り当て
+│   │   └── context_injector.rs # テンプレート注入
+│   ├── backend/             # コンテナバックエンド
+│   │   ├── traits.rs        # Backend trait
+│   │   └── docker.rs        # Docker 実装
+│   └── output/              # 出力フォーマッタ
+│       ├── json.rs          # JSON 出力
+│       └── human.rs         # 人間可読出力
+├── tests/
+│   └── integration_tests.rs
+├── Cargo.toml
+├── Dockerfile               # Alpine musl ビルド
+├── docker-compose.yml
+└── aether.toml              # サンプル設定
 ```
 
-## Key CLI Commands
+## CLI Commands
 
 ```bash
-# ワークスペース作成（インフラも同時起動）
-ajj workspace add <destination>
-
-# 環境変数をロードしてコマンド実行
-ajj run -- <command>
-
-# 状態確認（JSON出力対応）
-ajj status --json
-
-# ワークスペース削除（インフラも同時破棄）
-ajj workspace forget <workspace>
+ajj workspace add <destination>   # ワークスペース作成 + コンテナ起動
+ajj workspace forget <workspace>  # ワークスペース削除 + コンテナ停止
+ajj run -- <command>              # 環境変数をロードしてコマンド実行
+ajj status [--json]               # ステータス表示
+ajj list [--json]                 # 全ワークスペース一覧
+ajj cleanup [--force]             # 孤立コンテナの削除
+ajj <jj-command>                  # jj へのパススルー
 ```
 
-## Configuration Format (aether.toml)
+## Configuration (aether.toml)
 
 ```toml
 [backend]
-type = "docker"  # "docker", "kubernetes", "ssh"
+type = "docker"
 
 [services.postgres]
 image = "postgres:15"
-ports = ["5432"]  # 動的にホストポートへマッピング
+ports = ["5432"]
 env = { POSTGRES_PASSWORD = "password" }
 
 [injection]
@@ -62,46 +78,89 @@ file = ".env"
 template = "DATABASE_URL=postgres://postgres:password@localhost:{{ services.postgres.ports.5432 }}/mydb"
 ```
 
-## Architecture
+## Development
 
-Aether は「Sidecar / Wrapper」アーキテクチャを採用:
+### Build
 
-1. **CLI (ajj)**: ユーザー/AIエージェントからのコマンドを受け付け
-2. **Jujutsu委譲**: VCS操作は内部で `jj` に委譲
-3. **Resource Provisioner**: バックエンド（Docker/K8s）へのコンテナ管理
-4. **Context Injection**: 接続情報を `.env` などに注入
+```bash
+cargo build --release
+```
 
-## Development Guidelines
+### Test
 
-### AI-First UX
+```bash
+cargo test
+```
 
-- エラーメッセージは構造化された情報を含め、AIが原因特定・修正できるようにする
-- 対話モードより引数による完全制御を優先
-- JSON/XML 形式の標準出力をサポート
+### Lint
 
-### Performance Requirements
+```bash
+cargo clippy -- -D warnings
+cargo fmt --check
+```
 
-- `workspace add` のオーバーヘッドはコンテナ起動時間を除き1秒以内
-- `jj` のネイティブな高速性を損なわない
+### Docker
 
-### Code Style
+```bash
+docker build -t aether:latest .
+docker run --rm aether:latest --help
+```
 
-- Rust の標準的なスタイル (`rustfmt`, `clippy`)
-- エラーハンドリングは `Result` 型を活用
-- バックエンドはプラグイン可能な設計（trait による抽象化）
+## Key Dependencies
 
-## Roadmap
+| Crate | Purpose |
+|-------|---------|
+| clap | CLI 引数パース |
+| tokio | 非同期ランタイム |
+| bollard | Docker API |
+| handlebars | テンプレートエンジン |
+| serde | シリアライズ/デシリアライズ |
+| thiserror | エラー定義 |
+| fs2 | ファイルロック |
+| chrono | 日時処理 |
 
-1. **Phase 1 (MVP)**: Local Docker ラッパー、動的ポートマッピング
-2. **Phase 2**: Remote Docker/SSH、Kubernetes Namespace 対応
-3. **Phase 3**: MCP サーバー実装、AIエージェント向け標準プロトコル
+## Architecture Notes
+
+### Backend Trait
+
+```rust
+#[async_trait]
+pub trait Backend: Send + Sync {
+    async fn provision(&self, namespace: &str, services: &HashMap<String, ServiceSpec>) -> Result<Vec<ResourceHandle>>;
+    async fn deprovision(&self, namespace: &str) -> Result<()>;
+    async fn status(&self, namespace: &str) -> Result<Vec<ResourceStatus>>;
+    fn backend_type(&self) -> &'static str;
+}
+```
+
+### State Management
+
+- 状態は `.jj/aether-state.json` に保存
+- ファイルロック (`fs2`) で排他制御
+- アトミック書き込み (tmp → rename)
+
+### Port Allocation
+
+- OS に空きポートを割り当てさせる (`TcpListener::bind("127.0.0.1:0")`)
+- `Mutex<HashSet<u16>>` でスレッドセーフに管理
 
 ## Testing
 
+テストは `#[test]` と `#[tokio::test]` を使用:
+
 ```bash
-# テスト実行
+# 全テスト実行
 cargo test
 
-# ワークスペース内でのテスト（隔離環境使用）
-ajj run -- cargo test
+# 特定のテストを実行
+cargo test test_port_allocator
+
+# Docker 統合テスト (Docker 必要)
+cargo test test_docker -- --ignored
 ```
+
+## CI/CD
+
+GitHub Actions ワークフロー:
+- `.github/workflows/ci.yml` - CI (check, fmt, clippy, test, build)
+- `.github/workflows/release.yml` - リリース自動化
