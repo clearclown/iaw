@@ -1,0 +1,31 @@
+# Aether Configuration Example
+# This file configures infrastructure provisioning for your Jujutsu workspaces
+
+[backend]
+type = "docker"
+
+# Example PostgreSQL service
+[services.postgres]
+image = "postgres:15-alpine"
+ports = ["5432"]
+env = { POSTGRES_PASSWORD = "devpass", POSTGRES_USER = "dev", POSTGRES_DB = "devdb" }
+
+# Example Redis service
+[services.redis]
+image = "redis:7-alpine"
+ports = ["6379"]
+
+# Context injection configuration
+# Variables are injected into workspace .env file
+[injection]
+file = ".env"
+template = """
+# Database configuration
+DATABASE_URL=postgres://dev:devpass@localhost:{{ services.postgres.ports.5432 }}/devdb
+DB_HOST=localhost
+DB_PORT={{ services.postgres.ports.5432 }}
+
+# Redis configuration
+REDIS_URL=redis://localhost:{{ services.redis.ports.6379 }}
+REDIS_PORT={{ services.redis.ports.6379 }}
+"""
