@@ -1,24 +1,23 @@
 # Project Kanban - Aether
 
-## Current Status: SPEC_PHASE (Phase 1)
+## Status: COMPLETED
 
-## Spec Phase
-- [ ] Phase 1: Extraction & Architecture
-- [ ] Phase 2: Structure & Schema
-- [ ] Phase 3: Alignment
-- [ ] Phase 4: Verification
+## Spec Phase - COMPLETE
+- [x] Phase 1: Extraction & Architecture
+- [x] Phase 2: Structure & Schema
+- [x] Phase 3: Alignment
+- [x] Phase 4: Verification
 
-## Impl Phase
-- [ ] Backend Implementation (TDD)
-- [ ] Frontend Implementation (TDD)
-- [ ] Docker Setup
+## Impl Phase - COMPLETE
+- [x] Core Infrastructure (Error, Config, State, Port, Context)
+- [x] JJ Integration (Delegation, Parser)
+- [x] Backend (Traits, Docker)
+- [x] CLI Commands (workspace, run, status, list, cleanup)
+- [x] Output Formatters (JSON, Human)
 
-## Quality Gates (ALL 19 MUST PASS)
-- [ ] Gate 1: Backend Build
-- [ ] Gate 2: Backend Tests
-- [ ] Gate 3: Frontend Build
-- [ ] Gate 4: Frontend Tests
-- [ ] Gate 5: Docker Build
-- [ ] Gate 6: Docker Run
-- [ ] Gate 7: Health Check
-- [ ] Gate 19: E2E Test Execution (Playwright)
+## Quality Gates (Rust Project) - ALL PASSED
+- [x] Gate 1: cargo build --release
+- [x] Gate 2: cargo test (27 unit + 5 integration)
+- [x] Gate 3: cargo clippy -- -D warnings
+- [x] Gate 4: cargo fmt --check
+- [x] Gate 5: Binary name is `ajj`

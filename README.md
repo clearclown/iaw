@@ -1,27 +1,27 @@
 # Aether (ajj)
 
-**Infrastructure as Workspace** - The missing link for parallel AI-driven development.
+**Infrastructure as Workspace** - AI並列開発のためのミッシングリンク
 
-Aether は [Jujutsu (jj)](https://github.com/martinvonz/jj) のラッパーであり、バージョン管理ワークフローの第一級市民として **インフラストラクチャのライフサイクル** を扱います。
+Aether は [Jujutsu (jj)](https://github.com/martinvonz/jj) のラッパーで、**インフラのライフサイクル**をバージョン管理と統合します。
 
-AIエージェント (Claude Code, GitHub Copilot Workspace) の時代に向けて設計された Aether は、ポートの競合やリソースの枯渇を起こすことなく、数十の並列開発環境を即座に生成することを可能にします。
+Claude Code や GitHub Copilot Workspace などの AI エージェント時代に向けて設計されており、ポート競合やリソース枯渇なしに、数十の並列開発環境を即座に立ち上げられます。
 
 ## コンセプト
 
-**従来の開発では：**
-- ブランチ は安価で分離されています
-- 環境 (DB, サーバー) は重く、共有され、競合が発生しやすいです
+**従来の開発：**
+- ブランチは軽量で独立している
+- しかし環境（DB、サーバー等）は重く、共有され、競合しがち
 
-**Aether (IaW) では：**
-- `ajj workspace add` を実行すると、**ブランチ** と **専用のコンテナ環境** が作成されます
-- インフラストラクチャは一時的です：ワークスペースと共に生き、ワークスペースと共に死にます
+**Aether による解決：**
+- `ajj workspace add` でブランチと専用コンテナ環境を同時に作成
+- インフラは使い捨て：ワークスペースと運命を共にする
 
 ## 特徴
 
-- **AIネイティブデザイン**: LLMエージェント向けに最適化された、構造化JSON出力と決定論的な環境プロビジョニング
-- **ゼロ設定競合**: すべてのワークスペースにランダムなポートを自動的に割り当て。`Address already in use: 5432` に悩まされることはありません
-- **リモートオフロード**: コンテナをリモートの Docker ホストで実行し、手元のラップトップを快適に保ちます
-- **自動 GC**: ワークスペースを削除すると、関連するコンテナも即座にキルされます
+- **AI ファースト設計**: 構造化 JSON 出力と決定論的な環境構築で LLM エージェントに最適化
+- **ポート競合ゼロ**: 各ワークスペースにランダムなポートを自動割り当て。`Address already in use: 5432` とはもうおさらば
+- **リモート実行**: コンテナをリモート Docker ホストで動かし、ローカルマシンの負荷を軽減
+- **自動クリーンアップ**: ワークスペース削除時に関連コンテナも即座に破棄
 
 ## インストール
 
@@ -37,23 +37,23 @@ cargo install --path .
 
 ```bash
 cargo install aether
-# バイナリ名は `ajj` (AI-jj) です
+# バイナリ名は `ajj`（AI-jj の略）
 ```
 
-## 使用方法
+## 使い方
 
-### 1. リポジトリで Aether を初期化する
+### 1. プロジェクトで Aether を初期化
 
-環境を定義するために `aether.toml` を作成します：
+環境定義用の `aether.toml` を作成：
 
 ```toml
 # aether.toml
 [backend]
-type = "docker"  # または "ssh"
+type = "docker"  # or "ssh"
 
 [services.postgres]
 image = "postgres:15"
-ports = ["5432"]  # Aether はこれをランダムなホストポートにマッピングします
+ports = ["5432"]  # Aether がランダムなホストポートに自動マッピング
 env = { POSTGRES_PASSWORD = "password" }
 
 [injection]
@@ -61,28 +61,28 @@ file = ".env"
 template = "DATABASE_URL=postgres://postgres:password@localhost:{{ services.postgres.ports.5432 }}/mydb"
 ```
 
-### 2. ワークスペースを作成する
+### 2. ワークスペースを作成
 
 ```bash
-# 新しいワークスペースを作成（コンテナも自動起動）
+# ワークスペース作成（コンテナも自動起動）
 $ ajj workspace add feature-login-fix
 > Creating workspace...
 > Spawning postgres container (ID: 8a7f2b)... mapped to port 32891
 > Injected config into .env
 > Workspace ready at ./feature-login-fix
 
-# 環境変数をロードしてテスト実行
+# 環境変数を読み込んでテスト実行
 $ cd feature-login-fix
 $ ajj run -- cargo test
 
-# 作業完了後
+# 作業完了
 $ jj new main -m "fix: login bug"
 $ jj squash
 ```
 
-### 3. クリーンアップ
+### 3. 後片付け
 
-ワークスペースが削除されると、インフラストラクチャも消滅します：
+ワークスペース削除と同時にインフラも消える：
 
 ```bash
 $ ajj workspace forget feature-login-fix
@@ -95,17 +95,17 @@ $ ajj workspace forget feature-login-fix
 
 | コマンド | 説明 |
 |---------|------|
-| `ajj workspace add <dest>` | ワークスペース作成 + コンテナ起動 |
-| `ajj workspace forget <name>` | ワークスペース削除 + コンテナ停止 |
-| `ajj run -- <command>` | 環境変数をロードしてコマンド実行 |
-| `ajj status [--json]` | ワークスペースとコンテナの状態表示 |
-| `ajj list [--json]` | 全ワークスペース一覧 |
-| `ajj cleanup [--force]` | 孤立コンテナの削除 |
-| `ajj <jj-command>` | jj コマンドへのパススルー |
+| `ajj workspace add <dest>` | ワークスペース作成＋コンテナ起動 |
+| `ajj workspace forget <name>` | ワークスペース削除＋コンテナ停止 |
+| `ajj run -- <command>` | 環境変数を読み込んでコマンド実行 |
+| `ajj status [--json]` | ワークスペースとコンテナの状態を表示 |
+| `ajj list [--json]` | 全ワークスペースを一覧表示 |
+| `ajj cleanup [--force]` | 孤立コンテナを削除 |
+| `ajj <jj-command>` | jj コマンドをそのまま実行 |
 
 ## アーキテクチャ
 
-Aether は `jj` バイナリをラップし、ワークスペースコマンドをインターセプトしてインフラストラクチャのフックをトリガーします。
+Aether は `jj` をラップし、ワークスペース操作をフックしてインフラ管理を自動化します。
 
 ```
 ┌─────────────────┐
@@ -120,13 +120,13 @@ Aether は `jj` バイナリをラップし、ワークスペースコマンド�
          ▼                           ▼
 ┌─────────────────┐         ┌─────────────────┐
 │   Jujutsu (jj)  │         │   Docker API    │
-│   VCS操作       │         │   コンテナ管理   │
+│   VCS 操作      │         │   コンテナ管理  │
 └─────────────────┘         └─────────────────┘
 ```
 
 ## 開発
 
-### 必要条件
+### 必要なもの
 
 - Rust 1.70+
 - Docker
@@ -151,14 +151,14 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-## コントリビューション
+## コントリビュート
 
-私たちは AI ソフトウェアエンジニアのための OS を構築しています。ぜひ参加してください！
+AI ソフトウェアエンジニアのための OS を一緒に作りませんか？
 
-1. Fork this repository
-2. Create your feature branch (`jj new main -m "feat: add amazing feature"`)
-3. Run tests (`cargo test`)
-4. Submit a Pull Request
+1. このリポジトリを Fork
+2. フィーチャーブランチを作成 (`jj new main -m "feat: add amazing feature"`)
+3. テスト実行 (`cargo test`)
+4. Pull Request を送信
 
 ## ライセンス
 
