@@ -161,6 +161,13 @@ impl Backend for DockerBackend {
                 },
             );
 
+            // Build resource limits (as individual fields on HostConfig)
+            let cpu_quota = spec.cpu_limit.map(|q| (q * 100000.0) as i64);
+            let cpu_period = spec.cpu_limit.map(|_| 100000i64);
+            let cpu_shares = spec.cpu_reservation.map(|r| (r * 1024.0) as i64);
+            let memory = spec.memory_limit;
+            let memory_reservation = spec.memory_reservation;
+
             // Create container config
             let config = Config {
                 image: Some(spec.image.clone()),
@@ -171,6 +178,11 @@ impl Backend for DockerBackend {
                     port_bindings: Some(port_bindings),
                     binds: if binds.is_empty() { None } else { Some(binds) },
                     network_mode: Some(network_name.clone()),
+                    cpu_quota,
+                    cpu_period,
+                    cpu_shares,
+                    memory,
+                    memory_reservation,
                     ..Default::default()
                 }),
                 networking_config: Some(bollard::container::NetworkingConfig { endpoints_config }),

@@ -10,6 +10,34 @@ use crate::repo::find_repo_root;
 use std::collections::HashMap;
 use std::path::Path;
 
+/// Parse memory string (e.g., "512m", "1g") to bytes
+fn parse_memory_to_bytes(mem: &str) -> Result<i64> {
+    let mem = mem.trim().to_lowercase();
+    let (num_str, unit) = if mem.ends_with('b') {
+        (&mem[..mem.len() - 1], &mem[mem.len() - 2..])
+    } else {
+        (&mem[..mem.len() - 1], &mem[mem.len() - 1..])
+    };
+
+    let num: f64 = num_str
+        .parse()
+        .map_err(|_| crate::error::AetherError::Config(format!("Invalid memory value: {}", mem)))?;
+
+    let multiplier = match unit {
+        "k" | "kb" => 1024.0,
+        "m" | "mb" => 1024.0 * 1024.0,
+        "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
+        _ => {
+            return Err(crate::error::AetherError::Config(format!(
+                "Invalid memory unit: {}",
+                unit
+            )))
+        }
+    };
+
+    Ok((num * multiplier) as i64)
+}
+
 pub async fn handle_workspace_add(
     destination: &str,
     revision: Option<&str>,
@@ -72,6 +100,22 @@ pub async fn handle_workspace_add(
                 volumes: svc_config.volumes.clone(),
                 command: svc_config.command.clone(),
                 port_mappings,
+                depends_on: svc_config.depends_on.clone(),
+                cpu_limit: svc_config.resources.as_ref().and_then(|r| r.cpu_limit),
+                cpu_reservation: svc_config
+                    .resources
+                    .as_ref()
+                    .and_then(|r| r.cpu_reservation),
+                memory_limit: svc_config
+                    .resources
+                    .as_ref()
+                    .and_then(|r| r.memory_limit.as_ref())
+                    .and_then(|m| parse_memory_to_bytes(m).ok()),
+                memory_reservation: svc_config
+                    .resources
+                    .as_ref()
+                    .and_then(|r| r.memory_reservation.as_ref())
+                    .and_then(|m| parse_memory_to_bytes(m).ok()),
             },
         );
     }
