@@ -41,6 +41,11 @@ pub struct ServiceSpec {
     pub volumes: Vec<String>,
     pub command: Option<Vec<String>>,
     pub port_mappings: HashMap<u16, u16>, // internal -> external
+    pub depends_on: Vec<String>,
+    pub cpu_limit: Option<f64>,
+    pub cpu_reservation: Option<f64>,
+    pub memory_limit: Option<i64>,
+    pub memory_reservation: Option<i64>,
 }
 
 #[derive(Debug, Clone)]

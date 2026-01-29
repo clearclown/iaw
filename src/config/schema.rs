@@ -29,6 +29,22 @@ pub struct ServiceConfig {
     pub volumes: Vec<String>,
     #[serde(default)]
     pub command: Option<Vec<String>>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    #[serde(default)]
+    pub resources: Option<ResourceLimits>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ResourceLimits {
+    #[serde(default)]
+    pub cpu_limit: Option<f64>,
+    #[serde(default)]
+    pub cpu_reservation: Option<f64>,
+    #[serde(default)]
+    pub memory_limit: Option<String>,
+    #[serde(default)]
+    pub memory_reservation: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
