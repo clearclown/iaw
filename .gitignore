@@ -26,3 +26,6 @@ workspaces/
 # Test artifacts
 *.log
 coverage/
+ajj.bash
+ajj.zsh
+ajj.fish
