@@ -20,6 +20,11 @@ async fn test_docker_provision_deprovision() {
             volumes: vec![],
             command: Some(vec!["sleep".to_string(), "300".to_string()]),
             port_mappings,
+            depends_on: vec![],
+            cpu_limit: None,
+            cpu_reservation: None,
+            memory_limit: None,
+            memory_reservation: None,
         },
     );
 
