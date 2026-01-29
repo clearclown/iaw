@@ -1,10 +1,12 @@
 pub mod commands;
+pub mod completion;
 pub mod logs;
 pub mod run;
 pub mod status;
 pub mod workspace;
 
 pub use commands::*;
+pub use completion::*;
 pub use logs::*;
 pub use run::*;
 pub use status::*;

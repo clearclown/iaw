@@ -1,10 +1,12 @@
 use aether::cli::{
-    handle_cleanup, handle_container_run, handle_list, handle_logs, handle_restart, handle_run,
-    handle_start, handle_status, handle_stop, handle_workspace_add, handle_workspace_forget,
+    generate_completion, handle_cleanup, handle_container_run, handle_list, handle_logs,
+    handle_restart, handle_run, handle_start, handle_status, handle_stop, handle_workspace_add,
+    handle_workspace_forget,
 };
 use aether::cli::{Cli, Commands, WorkspaceAction};
 use aether::jj::JjCommand;
 use clap::Parser;
+use std::path::Path;
 
 #[tokio::main]
 async fn main() {
@@ -58,6 +60,10 @@ async fn main() {
         Commands::Start { service } => handle_start(&service, json).await,
         Commands::ContainerExec { service, command } => {
             handle_container_run(&service, &command, json).await
+        }
+        Commands::Completion { shell, dir } => {
+            let dir_path = dir.as_deref().map(Path::new);
+            generate_completion(&shell, dir_path)
         }
         Commands::Jj(args) => {
             let cmd = JjCommand::new(args);

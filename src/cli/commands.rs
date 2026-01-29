@@ -99,6 +99,16 @@ pub enum Commands {
         command: Vec<String>,
     },
 
+    /// Generate shell completion scripts
+    Completion {
+        /// Shell type (bash, zsh, fish)
+        shell: String,
+
+        /// Output directory
+        #[arg(short, long)]
+        dir: Option<String>,
+    },
+
     /// Pass through to jj command
     #[command(external_subcommand)]
     Jj(Vec<String>),
