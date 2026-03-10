@@ -46,7 +46,7 @@ mod tests {
         fs::write(&config_path, "[backend]\ntype = \"docker\"").unwrap();
 
         let found = find_config(temp_dir.path()).unwrap();
-        assert_eq!(found, config_path);
+        assert_eq!(found, config_path.canonicalize().unwrap());
     }
 
     #[test]

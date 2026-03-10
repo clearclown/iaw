@@ -10,7 +10,7 @@ use bollard::models::{EndpointSettings, HostConfig, PortBinding};
 use bollard::network::{CreateNetworkOptions, ListNetworksOptions};
 use bollard::Docker;
 use futures_util::StreamExt;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 pub struct DockerBackend {
     client: Docker,
@@ -66,6 +66,63 @@ impl DockerBackend {
         Ok(())
     }
 
+    /// Topological sort of services respecting depends_on ordering.
+    /// Returns service names in an order where dependencies come first.
+    fn topo_sort(services: &HashMap<String, ServiceSpec>) -> Result<Vec<String>> {
+        let mut in_degree: HashMap<&str, usize> = HashMap::new();
+        let mut dependents: HashMap<&str, Vec<&str>> = HashMap::new();
+
+        for name in services.keys() {
+            in_degree.entry(name.as_str()).or_insert(0);
+        }
+
+        for (name, spec) in services {
+            for dep in &spec.depends_on {
+                if !services.contains_key(dep) {
+                    return Err(AetherError::Config(format!(
+                        "Service '{}' depends on unknown service '{}'",
+                        name, dep
+                    )));
+                }
+                dependents
+                    .entry(dep.as_str())
+                    .or_default()
+                    .push(name.as_str());
+                *in_degree.entry(name.as_str()).or_insert(0) += 1;
+            }
+        }
+
+        let mut queue: VecDeque<&str> = in_degree
+            .iter()
+            .filter(|(_, &deg)| deg == 0)
+            .map(|(&name, _)| name)
+            .collect();
+
+        let mut order = Vec::new();
+
+        while let Some(name) = queue.pop_front() {
+            order.push(name.to_string());
+            if let Some(deps) = dependents.get(name) {
+                for &dep in deps {
+                    if let Some(deg) = in_degree.get_mut(dep) {
+                        *deg -= 1;
+                        if *deg == 0 {
+                            queue.push_back(dep);
+                        }
+                    }
+                }
+            }
+        }
+
+        if order.len() != services.len() {
+            return Err(AetherError::Config(
+                "Circular dependency detected in service depends_on".into(),
+            ));
+        }
+
+        Ok(order)
+    }
+
     /// Find a container by namespace and service name
     async fn find_container(&self, namespace: &str, service: &str) -> Result<String> {
         let mut filters = HashMap::new();
@@ -112,7 +169,11 @@ impl Backend for DockerBackend {
         // Create dedicated network for this workspace
         self.ensure_network(&network_name, namespace).await?;
 
-        for (name, spec) in services {
+        // Sort services by depends_on to start dependencies first
+        let start_order = Self::topo_sort(services)?;
+
+        for name in &start_order {
+            let spec = &services[name];
             let container_name = format!("{}-{}", namespace, name);
 
             // Build port bindings
@@ -451,5 +512,90 @@ mod tests {
         let result = DockerBackend::new();
         // Just check it doesn't panic - may fail if Docker isn't available
         assert!(result.is_ok() || result.is_err());
+    }
+
+    fn make_spec(name: &str, depends_on: Vec<&str>) -> (String, ServiceSpec) {
+        (
+            name.to_string(),
+            ServiceSpec {
+                name: name.to_string(),
+                image: format!("{}:latest", name),
+                ports: vec![],
+                env: HashMap::new(),
+                volumes: vec![],
+                command: None,
+                port_mappings: HashMap::new(),
+                depends_on: depends_on.into_iter().map(String::from).collect(),
+                cpu_limit: None,
+                cpu_reservation: None,
+                memory_limit: None,
+                memory_reservation: None,
+            },
+        )
+    }
+
+    #[test]
+    fn test_topo_sort_no_deps() {
+        let services: HashMap<String, ServiceSpec> =
+            [make_spec("a", vec![]), make_spec("b", vec![])]
+                .into_iter()
+                .collect();
+        let order = DockerBackend::topo_sort(&services).unwrap();
+        assert_eq!(order.len(), 2);
+    }
+
+    #[test]
+    fn test_topo_sort_linear_deps() {
+        let services: HashMap<String, ServiceSpec> = [
+            make_spec("app", vec!["postgres"]),
+            make_spec("postgres", vec![]),
+        ]
+        .into_iter()
+        .collect();
+        let order = DockerBackend::topo_sort(&services).unwrap();
+        let pg_pos = order.iter().position(|s| s == "postgres").unwrap();
+        let app_pos = order.iter().position(|s| s == "app").unwrap();
+        assert!(pg_pos < app_pos);
+    }
+
+    #[test]
+    fn test_topo_sort_diamond_deps() {
+        let services: HashMap<String, ServiceSpec> = [
+            make_spec("app", vec!["redis", "postgres"]),
+            make_spec("redis", vec!["postgres"]),
+            make_spec("postgres", vec![]),
+        ]
+        .into_iter()
+        .collect();
+        let order = DockerBackend::topo_sort(&services).unwrap();
+        let pg_pos = order.iter().position(|s| s == "postgres").unwrap();
+        let redis_pos = order.iter().position(|s| s == "redis").unwrap();
+        let app_pos = order.iter().position(|s| s == "app").unwrap();
+        assert!(pg_pos < redis_pos);
+        assert!(redis_pos < app_pos);
+    }
+
+    #[test]
+    fn test_topo_sort_circular_dep() {
+        let services: HashMap<String, ServiceSpec> =
+            [make_spec("a", vec!["b"]), make_spec("b", vec!["a"])]
+                .into_iter()
+                .collect();
+        let result = DockerBackend::topo_sort(&services);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Circular dependency"));
+    }
+
+    #[test]
+    fn test_topo_sort_unknown_dep() {
+        let services: HashMap<String, ServiceSpec> = [make_spec("app", vec!["nonexistent"])]
+            .into_iter()
+            .collect();
+        let result = DockerBackend::topo_sort(&services);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("unknown service"));
     }
 }

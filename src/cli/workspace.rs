@@ -10,13 +10,19 @@ use crate::repo::find_repo_root;
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Parse memory string (e.g., "512m", "1g") to bytes
+/// Parse memory string (e.g., "512m", "1g", "512mb", "1gb") to bytes
 fn parse_memory_to_bytes(mem: &str) -> Result<i64> {
     let mem = mem.trim().to_lowercase();
-    let (num_str, unit) = if mem.ends_with('b') {
-        (&mem[..mem.len() - 1], &mem[mem.len() - 2..])
-    } else {
+
+    let (num_str, unit) = if mem.ends_with("kb") || mem.ends_with("mb") || mem.ends_with("gb") {
+        (&mem[..mem.len() - 2], &mem[mem.len() - 2..])
+    } else if mem.ends_with('k') || mem.ends_with('m') || mem.ends_with('g') {
         (&mem[..mem.len() - 1], &mem[mem.len() - 1..])
+    } else {
+        return Err(crate::error::AetherError::Config(format!(
+            "Invalid memory format: {}",
+            mem
+        )));
     };
 
     let num: f64 = num_str
@@ -27,12 +33,7 @@ fn parse_memory_to_bytes(mem: &str) -> Result<i64> {
         "k" | "kb" => 1024.0,
         "m" | "mb" => 1024.0 * 1024.0,
         "g" | "gb" => 1024.0 * 1024.0 * 1024.0,
-        _ => {
-            return Err(crate::error::AetherError::Config(format!(
-                "Invalid memory unit: {}",
-                unit
-            )))
-        }
+        _ => unreachable!(),
     };
 
     Ok((num * multiplier) as i64)
@@ -205,6 +206,51 @@ pub async fn handle_workspace_add(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_memory_short_suffix() {
+        assert_eq!(parse_memory_to_bytes("512m").unwrap(), 512 * 1024 * 1024);
+        assert_eq!(parse_memory_to_bytes("1g").unwrap(), 1024 * 1024 * 1024);
+        assert_eq!(parse_memory_to_bytes("256k").unwrap(), 256 * 1024);
+    }
+
+    #[test]
+    fn test_parse_memory_long_suffix() {
+        assert_eq!(parse_memory_to_bytes("512mb").unwrap(), 512 * 1024 * 1024);
+        assert_eq!(parse_memory_to_bytes("1gb").unwrap(), 1024 * 1024 * 1024);
+        assert_eq!(parse_memory_to_bytes("256kb").unwrap(), 256 * 1024);
+    }
+
+    #[test]
+    fn test_parse_memory_fractional() {
+        assert_eq!(
+            parse_memory_to_bytes("1.5g").unwrap(),
+            (1.5 * 1024.0 * 1024.0 * 1024.0) as i64
+        );
+    }
+
+    #[test]
+    fn test_parse_memory_with_whitespace() {
+        assert_eq!(parse_memory_to_bytes(" 512m ").unwrap(), 512 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_parse_memory_case_insensitive() {
+        assert_eq!(parse_memory_to_bytes("512M").unwrap(), 512 * 1024 * 1024);
+        assert_eq!(parse_memory_to_bytes("1GB").unwrap(), 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_parse_memory_invalid() {
+        assert!(parse_memory_to_bytes("512").is_err());
+        assert!(parse_memory_to_bytes("abc").is_err());
+        assert!(parse_memory_to_bytes("512tb").is_err());
+    }
 }
 
 pub async fn handle_workspace_forget(workspace: &str, json: bool) -> Result<()> {
